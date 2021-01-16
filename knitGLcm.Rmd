@@ -1,0 +1,118 @@
+---
+title: "Tugas Texture Analysis"
+author: "Kelompok 5"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen = "10")
+
+
+```
+
+```{r}
+#Read Files
+list.files(path = "Datase")
+```
+
+```{r}
+#import lib
+library(reshape)
+library(magick)
+library(radiomics)
+library(tidyverse)
+library(class)
+library(caret)
+```
+# Membuat Fungsi untuk dataset
+
+```{r}
+#Fungsi Mendapatkan statistik orde 1 dan 2
+getFirstOrderFeatures <- function(image){
+  gambarRGB <- image_read(sprintf("Dataset/%s",image))
+  gambarGrayscale <- image_convert(image = gambarRGB,colorspace = "gray")
+  pictureBitmapArray <- image_data(image = gambarGrayscale,frame = 1)
+  imageMatrix <- matrix(ncol = dim(pictureBitmapArray)[3],data = as.numeric(pictureBitmapArray[1:length(pictureBitmapArray)]) )
+  dataset <-c("Class"=image,calc_features((glcm(imageMatrix))))
+  
+  return(as.data.frame(dataset))
+}
+```
+
+#Membuat dataset dengan fungsi yang sebelumnya telah dibuat
+```{r}
+dataset <- data.frame()
+for(namaGambar in list.files("Dataset/")){
+  feature <- getFirstOrderFeatures(namaGambar)
+  if(length(dataset)==0){
+    dataset <- data.frame(feature)
+  }
+  else{
+    dataset[length(dataset[,1])+1,] <- feature
+  }
+  }
+```
+
+
+#Merapihkan kolom Class
+##Menghilangkan Angka 0-9 dan .png guna dijadikan test_y
+
+```{r}
+#Menghapus .png dan angka yang ada pada gambar
+dataset$Class <- gsub(x = dataset$Class,pattern = "[0-9]","")
+dataset$Class <- gsub(x = dataset$Class,pattern = ".png","")
+dataset
+```
+
+
+```{r}
+#Merubah Tipe Data menjadi yang seharusnya
+glimpse(feature)
+
+```
+```{r}
+
+```
+
+
+# Cross-Validation
+## Cross-Validation dilakukan sebelum normalisasi dengan tujuan menghindari data leakage 
+```{r}
+#Memberi seed supaya sampling tidak berubah
+set.seed(193876)
+index <- sample(x = nrow(dataset),size = nrow(dataset)*0.8)
+train_x <- dataset[index,2:length(dataset)]
+train_y <- dataset[index,1]
+test_x <- dataset[-index,2:length(dataset)]
+test_y <- dataset[-index,1]
+```
+
+#Normalisasi Data Train dan Test
+## X-Min-Max
+```{r}
+#Fungsi Normalize
+normalize <- function(x){
+  return((x - min(x))/(max(x) - min(x)))
+}
+#Aplikasi Fungsi
+train_x <- mutate_all(train_x,normalize)
+test_x <- mutate_all(test_x,normalize)
+```
+
+
+#Pembuatan Model dan Melihat Akurasi model dengan ConfusionMatrix
+
+## K = akar dari jumlah baris merupakan k yang optimal (referensi paper)
+```{r}
+predictVal <- knn(train = train_x,test = test_x,cl = train_y,k =sqrt(nrow(train_x)))
+confusionMatrix(as.factor(predictVal),reference = as.factor(test_y)) 
+
+```
+Terlihat bahwa didapatkan Akurasi 100%
+
+
+
+
